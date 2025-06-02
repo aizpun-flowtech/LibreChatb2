@@ -108,7 +108,7 @@ class OpenAIClient extends BaseClient {
       this.checkVisionRequest(this.options.attachments);
     }
 
-    const omniPattern = /\b(o1|o3)\b/i;
+    const omniPattern = /\b(o\d)\b/i;
     this.isOmni = omniPattern.test(this.modelOptions.model);
 
     const { OPENAI_FORCE_PROMPT } = process.env ?? {};
@@ -455,6 +455,9 @@ class OpenAIClient extends BaseClient {
             this.contextHandlers?.processFile(file);
             continue;
           }
+          if (file.metadata?.fileIdentifier) {
+            continue;
+          }
 
           orderedMessages[i].tokenCount += this.calculateImageTokenCost({
             width: file.width,
@@ -472,7 +475,9 @@ class OpenAIClient extends BaseClient {
       promptPrefix = this.augmentedPrompt + promptPrefix;
     }
 
-    if (promptPrefix && this.isOmni !== true) {
+    const noSystemModelRegex = /\b(o1-preview|o1-mini)\b/i.test(this.modelOptions.model);
+
+    if (promptPrefix && !noSystemModelRegex) {
       promptPrefix = `Instructions:\n${promptPrefix.trim()}`;
       instructions = {
         role: 'system',
@@ -500,7 +505,7 @@ class OpenAIClient extends BaseClient {
     };
 
     /** EXPERIMENTAL */
-    if (promptPrefix && this.isOmni === true) {
+    if (promptPrefix && noSystemModelRegex) {
       const lastUserMessageIndex = payload.findLastIndex((message) => message.role === 'user');
       if (lastUserMessageIndex !== -1) {
         if (Array.isArray(payload[lastUserMessageIndex].content)) {
@@ -1224,9 +1229,9 @@ ${convo}
 
         opts.baseURL = this.langchainProxy
           ? constructAzureURL({
-            baseURL: this.langchainProxy,
-            azureOptions: this.azure,
-          })
+              baseURL: this.langchainProxy,
+              azureOptions: this.azure,
+            })
           : this.azureEndpoint.split(/(?<!\/)\/(chat|completion)\//)[0];
 
         opts.defaultQuery = { 'api-version': this.azure.azureOpenAIApiVersion };
@@ -1236,6 +1241,9 @@ ${convo}
       if (this.isOmni === true && modelOptions.max_tokens != null) {
         modelOptions.max_completion_tokens = modelOptions.max_tokens;
         delete modelOptions.max_tokens;
+      }
+      if (this.isOmni === true && modelOptions.temperature != null) {
+        delete modelOptions.temperature;
       }
 
       if (process.env.OPENAI_ORGANIZATION) {
@@ -1275,6 +1283,14 @@ ${convo}
         modelOptions.messages[0]?.role === 'system'
       ) {
         modelOptions.messages[0].role = 'user';
+      }
+
+      if (
+        (this.options.endpoint === EModelEndpoint.openAI ||
+          this.options.endpoint === EModelEndpoint.azureOpenAI) &&
+        modelOptions.stream === true
+      ) {
+        modelOptions.stream_options = { include_usage: true };
       }
 
       if (this.options.addParams && typeof this.options.addParams === 'object') {
@@ -1379,12 +1395,6 @@ ${convo}
           ...modelOptions,
           stream: true,
         };
-        if (
-          this.options.endpoint === EModelEndpoint.openAI ||
-          this.options.endpoint === EModelEndpoint.azureOpenAI
-        ) {
-          params.stream_options = { include_usage: true };
-        }
         const stream = await openai.beta.chat.completions
           .stream(params)
           .on('abort', () => {

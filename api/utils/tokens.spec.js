@@ -340,6 +340,15 @@ describe('getModelMaxTokens', () => {
     expect(getModelMaxTokens('o1-preview-something')).toBe(o1PreviewTokens);
     expect(getModelMaxTokens('openai/o1-preview-something')).toBe(o1PreviewTokens);
   });
+
+  test('should return correct max context tokens for o4-mini and o3', () => {
+    const o4MiniTokens = maxTokensMap[EModelEndpoint.openAI]['o4-mini'];
+    const o3Tokens = maxTokensMap[EModelEndpoint.openAI]['o3'];
+    expect(getModelMaxTokens('o4-mini')).toBe(o4MiniTokens);
+    expect(getModelMaxTokens('openai/o4-mini')).toBe(o4MiniTokens);
+    expect(getModelMaxTokens('o3')).toBe(o3Tokens);
+    expect(getModelMaxTokens('openai/o3')).toBe(o3Tokens);
+  });
 });
 
 describe('matchModelName', () => {
@@ -637,6 +646,61 @@ describe('Grok Model Tests - Tokens', () => {
       expect(matchModelName('xai/grok-3-fast')).toBe('grok-3-fast');
       expect(matchModelName('xai/grok-3-mini')).toBe('grok-3-mini');
       expect(matchModelName('xai/grok-3-mini-fast')).toBe('grok-3-mini-fast');
+    });
+  });
+});
+
+describe('Claude Model Tests', () => {
+  it('should return correct context length for Claude 4 models', () => {
+    expect(getModelMaxTokens('claude-sonnet-4')).toBe(200000);
+    expect(getModelMaxTokens('claude-opus-4')).toBe(200000);
+  });
+
+  it('should handle Claude 4 model name variations with different prefixes and suffixes', () => {
+    const modelVariations = [
+      'claude-sonnet-4',
+      'claude-sonnet-4-20240229',
+      'claude-sonnet-4-latest',
+      'anthropic/claude-sonnet-4',
+      'claude-sonnet-4/anthropic',
+      'claude-sonnet-4-preview',
+      'claude-sonnet-4-20240229-preview',
+      'claude-opus-4',
+      'claude-opus-4-20240229',
+      'claude-opus-4-latest',
+      'anthropic/claude-opus-4',
+      'claude-opus-4/anthropic',
+      'claude-opus-4-preview',
+      'claude-opus-4-20240229-preview',
+    ];
+
+    modelVariations.forEach((model) => {
+      expect(getModelMaxTokens(model)).toBe(200000);
+    });
+  });
+
+  it('should match model names correctly for Claude 4 models', () => {
+    const modelVariations = [
+      'claude-sonnet-4',
+      'claude-sonnet-4-20240229',
+      'claude-sonnet-4-latest',
+      'anthropic/claude-sonnet-4',
+      'claude-sonnet-4/anthropic',
+      'claude-sonnet-4-preview',
+      'claude-sonnet-4-20240229-preview',
+      'claude-opus-4',
+      'claude-opus-4-20240229',
+      'claude-opus-4-latest',
+      'anthropic/claude-opus-4',
+      'claude-opus-4/anthropic',
+      'claude-opus-4-preview',
+      'claude-opus-4-20240229-preview',
+    ];
+
+    modelVariations.forEach((model) => {
+      const isSonnet = model.includes('sonnet');
+      const expectedModel = isSonnet ? 'claude-sonnet-4' : 'claude-opus-4';
+      expect(matchModelName(model, EModelEndpoint.anthropic)).toBe(expectedModel);
     });
   });
 });

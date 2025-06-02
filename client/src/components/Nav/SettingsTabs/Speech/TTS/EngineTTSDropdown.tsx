@@ -14,9 +14,9 @@ const EngineTTSDropdown: React.FC<EngineTTSDropdownProps> = ({ external }) => {
 
   const endpointOptions = external
     ? [
-      { value: 'browser', label: localize('com_nav_browser') },
-      { value: 'external', label: localize('com_nav_external') },
-    ]
+        { value: 'browser', label: localize('com_nav_browser') },
+        { value: 'external', label: localize('com_nav_external') },
+      ]
     : [{ value: 'browser', label: localize('com_nav_browser') }];
 
   const handleSelect = (value: string) => {
@@ -31,9 +31,8 @@ const EngineTTSDropdown: React.FC<EngineTTSDropdownProps> = ({ external }) => {
         onChange={handleSelect}
         options={endpointOptions}
         sizeClasses="w-[180px]"
-        anchor="bottom start"
         testId="EngineTTSDropdown"
-        className="rounded-xl"
+        className="z-50"
       />
     </div>
   );

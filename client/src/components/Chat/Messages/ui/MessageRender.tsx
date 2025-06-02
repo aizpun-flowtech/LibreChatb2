@@ -1,6 +1,6 @@
+import React, { useCallback, useMemo, memo } from 'react';
 import { useRecoilValue } from 'recoil';
-import { useCallback, useMemo, memo } from 'react';
-import type { TMessage } from 'librechat-data-provider';
+import { type TMessage } from 'librechat-data-provider';
 import type { TMessageProps, TMessageIcon } from '~/common';
 import MessageContent from '~/components/Chat/Messages/Content/MessageContent';
 import PlaceholderRow from '~/components/Chat/Messages/ui/PlaceholderRow';
@@ -53,13 +53,13 @@ const MessageRender = memo(
       copyToClipboard,
       setLatestMessage,
       regenerateMessage,
+      handleFeedback,
     } = useMessageActions({
       message: msg,
       currentEditId,
       isMultiMessage,
       setCurrentEditId,
     });
-
     const maximizeChatSpace = useRecoilValue(store.maximizeChatSpace);
     const fontSize = useRecoilValue(store.fontSize);
 
@@ -96,10 +96,10 @@ const MessageRender = memo(
       () =>
         showCardRender && !isLatestMessage
           ? () => {
-            logger.log(`Message Card click: Setting ${msg?.messageId} as latest message`);
-            logger.dir(msg);
-            setLatestMessage(msg!);
-          }
+              logger.log(`Message Card click: Setting ${msg?.messageId} as latest message`);
+              logger.dir(msg);
+              setLatestMessage(msg!);
+            }
           : undefined,
       [showCardRender, isLatestMessage, msg, setLatestMessage],
     );
@@ -210,6 +210,7 @@ const MessageRender = memo(
                   copyToClipboard={copyToClipboard}
                   handleContinue={handleContinue}
                   latestMessage={latestMessage}
+                  handleFeedback={handleFeedback}
                   isLast={isLast}
                 customButtons={[
                   {

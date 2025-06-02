@@ -33,13 +33,11 @@ const { addCacheControl, createContextHandlers } = require('~/app/clients/prompt
 const { spendTokens, spendStructuredTokens } = require('~/models/spendTokens');
 const { getBufferString, HumanMessage } = require('@langchain/core/messages');
 const { encodeAndFormat } = require('~/server/services/Files/images/encode');
+const initOpenAI = require('~/server/services/Endpoints/openAI/initialize');
 const Tokenizer = require('~/server/services/Tokenizer');
 const BaseClient = require('~/app/clients/BaseClient');
 const { logger, sendEvent } = require('~/config');
 const { createRun } = require('./run');
-
-/** @typedef {import('@librechat/agents').MessageContentComplex} MessageContentComplex */
-/** @typedef {import('@langchain/core/runnables').RunnableConfig} RunnableConfig */
 
 /**
  * @param {ServerRequest} req
@@ -57,7 +55,7 @@ const payloadParser = ({ req, agent, endpoint }) => {
 
 const legacyContentEndpoints = new Set([KnownEndpoints.groq, KnownEndpoints.deepseek]);
 
-const noSystemModelRegex = [/\bo1\b/gi];
+const noSystemModelRegex = [/\b(o1-preview|o1-mini|amazon\.titan-text)\b/gi];
 
 // const { processMemory, memoryInstructions } = require('~/server/services/Endpoints/agents/memory');
 // const { getFormattedMemories } = require('~/models/Memory');
@@ -147,19 +145,13 @@ class AgentClient extends BaseClient {
    * @param {MongoFile[]} attachments
    */
   checkVisionRequest(attachments) {
-    logger.info(
-      '[api/server/controllers/agents/client.js #checkVisionRequest] not implemented',
-      attachments,
-    );
     // if (!attachments) {
     //   return;
     // }
-
     // const availableModels = this.options.modelsConfig?.[this.options.endpoint];
     // if (!availableModels) {
     //   return;
     // }
-
     // let visionRequestDetected = false;
     // for (const file of attachments) {
     //   if (file?.type?.includes('image')) {
@@ -170,13 +162,11 @@ class AgentClient extends BaseClient {
     // if (!visionRequestDetected) {
     //   return;
     // }
-
     // this.isVisionModel = validateVisionModel({ model: this.modelOptions.model, availableModels });
     // if (this.isVisionModel) {
     //   delete this.modelOptions.stop;
     //   return;
     // }
-
     // for (const model of availableModels) {
     //   if (!validateVisionModel({ model, availableModels })) {
     //     continue;
@@ -186,14 +176,12 @@ class AgentClient extends BaseClient {
     //   delete this.modelOptions.stop;
     //   return;
     // }
-
     // if (!availableModels.includes(this.defaultVisionModel)) {
     //   return;
     // }
     // if (!validateVisionModel({ model: this.defaultVisionModel, availableModels })) {
     //   return;
     // }
-
     // this.modelOptions.model = this.defaultVisionModel;
     // this.isVisionModel = true;
     // delete this.modelOptions.stop;
@@ -363,7 +351,9 @@ class AgentClient extends BaseClient {
             this.contextHandlers?.processFile(file);
             continue;
           }
-
+          if (file.metadata?.fileIdentifier) {
+            continue;
+          }
           // orderedMessages[i].tokenCount += this.calculateImageTokenCost({
           //   width: file.width,
           //   height: file.height,
@@ -550,7 +540,7 @@ class AgentClient extends BaseClient {
   }
 
   async chatCompletion({ payload, abortController = null }) {
-    /** @type {Partial<RunnableConfig> & { version: 'v1' | 'v2'; run_id?: string; streamMode: string }} */
+    /** @type {Partial<GraphRunnableConfig>} */
     let config;
     /** @type {ReturnType<createRun>} */
     let run;
@@ -670,7 +660,7 @@ class AgentClient extends BaseClient {
         this.indexTokenCountMap,
         toolSet,
       );
-      if (legacyContentEndpoints.has(this.options.agent.endpoint)) {
+      if (legacyContentEndpoints.has(this.options.agent.endpoint?.toLowerCase())) {
         initialMessages = formatContentStrings(initialMessages);
       }
 
@@ -725,12 +715,14 @@ class AgentClient extends BaseClient {
         }
 
         if (noSystemMessages === true && systemContent?.length) {
-          let latestMessage = _messages.pop().content;
+          const latestMessageContent = _messages.pop().content;
           if (typeof latestMessage !== 'string') {
-            latestMessage = latestMessage[0].text;
+            latestMessageContent[0].text = [systemContent, latestMessageContent[0].text].join('\n');
+            _messages.push(new HumanMessage({ content: latestMessageContent }));
+          } else {
+            const text = [systemContent, latestMessageContent].join('\n');
+            _messages.push(new HumanMessage(text));
           }
-          latestMessage = [systemContent, latestMessage].join('\n');
-          _messages.push(new HumanMessage(latestMessage));
         }
 
         let messages = _messages;
@@ -931,14 +923,16 @@ class AgentClient extends BaseClient {
       throw new Error('Run not initialized');
     }
     const { handleLLMEnd, collected: collectedMetadata } = createMetadataAggregator();
+    const endpoint = this.options.agent.endpoint;
+    const { req, res } = this.options;
     /** @type {import('@librechat/agents').ClientOptions} */
-    const clientOptions = {
+    let clientOptions = {
       maxTokens: 75,
     };
-    let endpointConfig = this.options.req.app.locals[this.options.agent.endpoint];
+    let endpointConfig = req.app.locals[endpoint];
     if (!endpointConfig) {
       try {
-        endpointConfig = await getCustomEndpointConfig(this.options.agent.endpoint);
+        endpointConfig = await getCustomEndpointConfig(endpoint);
       } catch (err) {
         logger.error(
           '[api/server/controllers/agents/client.js #titleConvo] Error getting custom endpoint config',
@@ -952,6 +946,28 @@ class AgentClient extends BaseClient {
       endpointConfig.titleModel !== Constants.CURRENT_MODEL
     ) {
       clientOptions.model = endpointConfig.titleModel;
+    }
+    if (
+      endpoint === EModelEndpoint.azureOpenAI &&
+      clientOptions.model &&
+      this.options.agent.model_parameters.model !== clientOptions.model
+    ) {
+      clientOptions =
+        (
+          await initOpenAI({
+            req,
+            res,
+            optionsOnly: true,
+            overrideModel: clientOptions.model,
+            overrideEndpoint: endpoint,
+            endpointOption: {
+              model_parameters: clientOptions,
+            },
+          })
+        )?.llmConfig ?? clientOptions;
+    }
+    if (/\b(o\d)\b/i.test(clientOptions.model) && clientOptions.maxTokens != null) {
+      delete clientOptions.maxTokens;
     }
     try {
       const titleResult = await this.run.generateTitle({
