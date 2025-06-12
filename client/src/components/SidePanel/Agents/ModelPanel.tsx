@@ -1,18 +1,23 @@
 import React, { useMemo, useEffect } from 'react';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
 import { useFormContext, useWatch, Controller } from 'react-hook-form';
-import { getSettingsKeys, alternateName } from 'librechat-data-provider';
+import {
+  alternateName,
+  getSettingsKeys,
+  SettingDefinition,
+  agentParamSettings,
+} from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import type { AgentForm, AgentModelPanelProps, StringOption } from '~/common';
 import { componentMapping } from '~/components/SidePanel/Parameters/components';
-import { agentSettings } from '~/components/SidePanel/Parameters/settings';
 import ControlCombobox from '~/components/ui/ControlCombobox';
 import { useGetEndpointsQuery } from '~/data-provider';
 import { getEndpointField, cn } from '~/utils';
 import { useLocalize } from '~/hooks';
 import { Panel } from '~/common';
+import keyBy from 'lodash/keyBy';
 
-export default function Parameters({
+export default function ModelPanel({
   setActivePanel,
   providers,
   models: modelsData,
@@ -52,7 +57,7 @@ export default function Parameters({
     }
   }, [provider, models, modelsData, setValue, model]);
 
-  const { data: endpointsConfig } = useGetEndpointsQuery();
+  const { data: endpointsConfig = {} } = useGetEndpointsQuery();
 
   const bedrockRegions = useMemo(() => {
     return endpointsConfig?.[provider]?.availableRegions ?? [];
@@ -63,10 +68,18 @@ export default function Parameters({
     [provider, endpointsConfig],
   );
 
-  const parameters = useMemo(() => {
+  const parameters = useMemo((): SettingDefinition[] => {
+    const customParams = endpointsConfig[provider]?.customParams ?? {};
     const [combinedKey, endpointKey] = getSettingsKeys(endpointType ?? provider, model ?? '');
-    return agentSettings[combinedKey] ?? agentSettings[endpointKey];
-  }, [endpointType, model, provider]);
+    const overriddenEndpointKey = customParams.defaultParamsEndpoint ?? endpointKey;
+    const defaultParams =
+      agentParamSettings[combinedKey] ?? agentParamSettings[overriddenEndpointKey] ?? [];
+    const overriddenParams = endpointsConfig[provider]?.customParams?.paramDefinitions ?? [];
+    const overriddenParamsMap = keyBy(overriddenParams, 'key');
+    return defaultParams.map(
+      (param) => (overriddenParamsMap[param.key] as SettingDefinition) ?? param,
+    );
+  }, [endpointType, endpointsConfig, model, provider]);
 
   const setOption = (optionKey: keyof t.AgentModelParameters) => (value: t.AgentParameterValue) => {
     setValue(`model_parameters.${optionKey}`, value);
@@ -77,7 +90,7 @@ export default function Parameters({
   };
 
   return (
-    <div className="scrollbar-gutter-stable h-full min-h-[50vh] overflow-auto pb-12 text-sm">
+    <div className="mx-1 mb-1 flex h-full min-h-[50vh] w-full flex-col gap-2 text-sm">
       <div className="model-panel relative flex flex-col items-center px-16 py-4 text-center">
         <div className="absolute left-0 top-4">
           <button
@@ -198,7 +211,7 @@ export default function Parameters({
       {/* Model Parameters */}
       {parameters && (
         <div className="h-auto max-w-full overflow-x-hidden p-2">
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 gap-4">
             {/* This is the parent element containing all settings */}
             {/* Below is an example of an applied dynamic setting, each be contained by a div with the column span specified */}
             {parameters.map((setting) => {
@@ -224,19 +237,17 @@ export default function Parameters({
               );
             })}
           </div>
-          {/* Reset Parameters Button */}
-          <div className="mt-6 flex justify-center">
-            <button
-              type="button"
-              onClick={handleResetParameters}
-              className="btn btn-neutral flex w-full items-center justify-center gap-2 px-4 py-2 text-sm"
-            >
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              {localize('com_ui_reset_var', { 0: localize('com_ui_model_parameters') })}
-            </button>
-          </div>
         </div>
       )}
+      {/* Reset Parameters Button */}
+      <button
+        type="button"
+        onClick={handleResetParameters}
+        className="btn btn-neutral my-1 flex w-full items-center justify-center gap-2 px-4 py-2 text-sm"
+      >
+        <RotateCcw className="h-4 w-4" aria-hidden="true" />
+        {localize('com_ui_reset_var', { 0: localize('com_ui_model_parameters') })}
+      </button>
     </div>
   );
 }

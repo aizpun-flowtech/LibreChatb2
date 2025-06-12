@@ -10,6 +10,9 @@ import type {
   TConversationTag,
   TBanner,
 } from './schemas';
+import { TMinimalFeedback } from './feedback';
+import { SettingDefinition } from './generate';
+
 export type TOpenAIMessage = OpenAI.Chat.ChatCompletionMessageParam;
 
 export * from './schemas';
@@ -18,6 +21,8 @@ export type TMessages = TMessage[];
 
 /* TODO: Cleanup EndpointOption types */
 export type TEndpointOption = {
+  spec?: string | null;
+  iconURL?: string | null;
   endpoint: EModelEndpoint;
   endpointType?: EModelEndpoint;
   modelDisplayLabel?: string;
@@ -39,12 +44,19 @@ export type TEndpointOption = {
   overrideUserMessageId?: string;
 };
 
+export type TEphemeralAgent = {
+  mcp?: string[];
+  web_search?: boolean;
+  execute_code?: boolean;
+};
+
 export type TPayload = Partial<TMessage> &
   Partial<TEndpointOption> & {
     isContinued: boolean;
     conversationId: string | null;
     messages?: TMessages;
     isTemporary: boolean;
+    ephemeralAgent?: TEphemeralAgent | null;
   };
 
 export type TSubmission = {
@@ -57,11 +69,12 @@ export type TSubmission = {
   isTemporary: boolean;
   messages: TMessage[];
   isRegenerate?: boolean;
-  conversationId?: string;
+  isResubmission?: boolean;
   initialResponse?: TMessage;
   conversation: Partial<TConversation>;
   endpointOption: TEndpointOption;
   clientTimestamp?: string;
+  ephemeralAgent?: TEphemeralAgent | null;
 };
 
 export type EventSubmission = Omit<TSubmission, 'initialResponse'> & { initialResponse: TMessage };
@@ -69,7 +82,7 @@ export type EventSubmission = Omit<TSubmission, 'initialResponse'> & { initialRe
 export type TPluginAction = {
   pluginKey: string;
   action: 'install' | 'uninstall';
-  auth?: unknown;
+  auth?: Partial<Record<string, string>>;
   isEntityTool?: boolean;
 };
 
@@ -79,7 +92,7 @@ export type TUpdateUserPlugins = {
   isEntityTool?: boolean;
   pluginKey: string;
   action: string;
-  auth?: unknown;
+  auth?: Partial<Record<string, string | null>>;
 };
 
 // TODO `label` needs to be changed to the proper `TranslationKeys`
@@ -115,6 +128,7 @@ export type TUser = {
   role: string;
   provider: string;
   plugins?: string[];
+  twoFactorEnabled?: boolean;
   backupCodes?: TBackupCode[];
   createdAt: string;
   updatedAt: string;
@@ -258,6 +272,10 @@ export type TConfig = {
   disableBuilder?: boolean;
   retrievalModels?: string[];
   capabilities?: string[];
+  customParams?: {
+    defaultParamsEndpoint?: string;
+    paramDefinitions?: SettingDefinition[];
+  };
 };
 
 export type TEndpointsConfig =
@@ -530,3 +548,23 @@ export type TAcceptTermsResponse = {
 };
 
 export type TBannerResponse = TBanner | null;
+
+export type TUpdateFeedbackRequest = {
+  feedback?: TMinimalFeedback;
+};
+
+export type TUpdateFeedbackResponse = {
+  messageId: string;
+  conversationId: string;
+  feedback?: TMinimalFeedback;
+}
+
+export type TBalanceResponse = {
+  tokenCredits: number;
+  // Automatic refill settings
+  autoRefillEnabled: boolean;
+  refillIntervalValue?: number;
+  refillIntervalUnit?: 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
+  lastRefill?: Date;
+  refillAmount?: number;
+};

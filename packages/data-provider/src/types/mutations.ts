@@ -1,5 +1,6 @@
 import * as types from '../types';
 import * as r from '../roles';
+import * as p from '../permissions';
 import {
   Tools,
   Assistant,
@@ -128,7 +129,20 @@ export type UpdateAgentVariables = {
   data: AgentUpdateParams;
 };
 
-export type UpdateAgentMutationOptions = MutationOptions<Agent, UpdateAgentVariables>;
+export type DuplicateVersionError = Error & {
+  statusCode?: number;
+  details?: {
+    duplicateVersion?: unknown;
+    versionIndex?: number;
+  };
+};
+
+export type UpdateAgentMutationOptions = MutationOptions<
+  Agent,
+  UpdateAgentVariables,
+  unknown,
+  DuplicateVersionError
+>;
 
 export type DuplicateAgentBody = {
   agent_id: string;
@@ -158,9 +172,21 @@ export type DeleteAgentActionVariables = {
 
 export type DeleteAgentActionOptions = MutationOptions<void, DeleteAgentActionVariables>;
 
+export type RevertAgentVersionVariables = {
+  agent_id: string;
+  version_index: number;
+};
+
+export type RevertAgentVersionOptions = MutationOptions<Agent, RevertAgentVersionVariables>;
+
 export type DeleteConversationOptions = MutationOptions<
   types.TDeleteConversationResponse,
   types.TDeleteConversationRequest
+>;
+
+export type ArchiveConversationOptions = MutationOptions<
+  types.TArchiveConversationResponse,
+  types.TArchiveConversationRequest
 >;
 
 export type DuplicateConvoOptions = MutationOptions<
@@ -251,9 +277,9 @@ export type UpdatePermVars<T> = {
   updates: Partial<T>;
 };
 
-export type UpdatePromptPermVars = UpdatePermVars<r.TPromptPermissions>;
+export type UpdatePromptPermVars = UpdatePermVars<p.TPromptPermissions>;
 
-export type UpdateAgentPermVars = UpdatePermVars<r.TAgentPermissions>;
+export type UpdateAgentPermVars = UpdatePermVars<p.TAgentPermissions>;
 
 export type UpdatePermResponse = r.TRole;
 

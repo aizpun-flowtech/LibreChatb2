@@ -52,6 +52,7 @@ export default function AgentSelect({
       };
 
       const capabilities: TAgentCapabilities = {
+        [AgentCapabilities.web_search]: false,
         [AgentCapabilities.file_search]: false,
         [AgentCapabilities.execute_code]: false,
         [AgentCapabilities.end_after_tools]: false,
@@ -81,7 +82,26 @@ export default function AgentSelect({
           return;
         }
 
+        if (capabilities[name] !== undefined) {
+          formValues[name] = value;
+          return;
+        }
+
+        if (
+          name === 'agent_ids' &&
+          Array.isArray(value) &&
+          value.every((item) => typeof item === 'string')
+        ) {
+          formValues[name] = value;
+          return;
+        }
+
         if (!keys.has(name)) {
+          return;
+        }
+
+        if (name === 'recursion_limit' && typeof value === 'number') {
+          formValues[name] = value;
           return;
         }
 

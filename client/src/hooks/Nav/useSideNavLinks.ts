@@ -8,7 +8,7 @@ import {
   EModelEndpoint,
   Permissions,
 } from 'librechat-data-provider';
-import type { TConfig, TInterfaceConfig } from 'librechat-data-provider';
+import type { TInterfaceConfig, TEndpointsConfig } from 'librechat-data-provider';
 import type { NavLink } from '~/common';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import BookmarkPanel from '~/components/SidePanel/Bookmarks/BookmarkPanel';
@@ -21,22 +21,20 @@ import { useHasAccess } from '~/hooks';
 
 export default function useSideNavLinks({
   hidePanel,
-  assistants,
-  agents,
   keyProvided,
   endpoint,
   endpointType,
   interfaceConfig,
   customLinks,
+  endpointsConfig,
 }: {
   hidePanel: () => void;
-  assistants?: TConfig | null;
-  agents?: TConfig | null;
   keyProvided: boolean;
   endpoint?: EModelEndpoint | null;
   endpointType?: EModelEndpoint | null;
   interfaceConfig: Partial<TInterfaceConfig>;
   customLinks?: NavLink[];
+  endpointsConfig: TEndpointsConfig;
 }) {
   const hasAccessToPrompts = useHasAccess({
     permissionType: PermissionTypes.PROMPTS,
@@ -59,8 +57,12 @@ export default function useSideNavLinks({
     const links: NavLink[] = [];
     if (
       isAssistantsEndpoint(endpoint) &&
-      assistants &&
-      assistants.disableBuilder !== true &&
+      ((endpoint === EModelEndpoint.assistants &&
+        endpointsConfig?.[EModelEndpoint.assistants] &&
+        endpointsConfig[EModelEndpoint.assistants].disableBuilder !== true) ||
+        (endpoint === EModelEndpoint.azureAssistants &&
+          endpointsConfig?.[EModelEndpoint.azureAssistants] &&
+          endpointsConfig[EModelEndpoint.azureAssistants].disableBuilder !== true)) &&
       keyProvided
     ) {
       links.push({
@@ -73,11 +75,10 @@ export default function useSideNavLinks({
     }
 
     if (
+      endpointsConfig?.[EModelEndpoint.agents] &&
       hasAccessToAgents &&
       hasAccessToCreateAgents &&
-      isAgentsEndpoint(endpoint) &&
-      agents &&
-      agents.disableBuilder !== true
+      endpointsConfig[EModelEndpoint.agents].disableBuilder !== true
     ) {
       links.push({
         title: 'com_sidepanel_agent_builder',
@@ -145,12 +146,11 @@ export default function useSideNavLinks({
 
     return links;
   }, [
+    endpointsConfig,
     interfaceConfig.parameters,
     keyProvided,
-    assistants,
     endpointType,
     endpoint,
-    agents,
     hasAccessToAgents,
     hasAccessToPrompts,
     hasAccessToBookmarks,

@@ -4,6 +4,7 @@ import { useWatch, useForm, FormProvider } from 'react-hook-form';
 import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import {
   Tools,
+  Constants,
   SystemRoles,
   EModelEndpoint,
   isAssistantsEndpoint,
@@ -19,8 +20,10 @@ import { useSelectAgent, useLocalize, useAuthContext } from '~/hooks';
 import AgentPanelSkeleton from './AgentPanelSkeleton';
 import { createProviderOption } from '~/utils';
 import { useToastContext } from '~/Providers';
+import AdvancedPanel from './Advanced/AdvancedPanel';
 import AgentConfig from './AgentConfig';
 import AgentSelect from './AgentSelect';
+import AgentFooter from './AgentFooter';
 import { Button } from '~/components';
 import ModelPanel from './ModelPanel';
 import { Panel } from '~/common';
@@ -43,7 +46,7 @@ export default function AgentPanel({
 
   const modelsQuery = useGetModelsQuery();
   const agentQuery = useGetAgentByIdQuery(current_agent_id ?? '', {
-    enabled: !!(current_agent_id ?? ''),
+    enabled: !!(current_agent_id ?? '') && current_agent_id !== Constants.EPHEMERAL_AGENT_ID,
   });
 
   const models = useMemo(() => modelsQuery.data ?? {}, [modelsQuery.data]);
@@ -54,18 +57,24 @@ export default function AgentPanel({
   const { control, handleSubmit, reset } = methods;
   const agent_id = useWatch({ control, name: 'id' });
 
+  const allowedProviders = useMemo(
+    () => new Set(agentsConfig?.allowedProviders),
+    [agentsConfig?.allowedProviders],
+  );
+
   const providers = useMemo(
     () =>
       Object.keys(endpointsConfig ?? {})
         .filter(
           (key) =>
             !isAssistantsEndpoint(key) &&
+            (allowedProviders.size > 0 ? allowedProviders.has(key) : true) &&
             key !== EModelEndpoint.agents &&
             key !== EModelEndpoint.chatGPTBrowser &&
             key !== EModelEndpoint.gptPlugins,
         )
         .map((provider) => createProviderOption(provider)),
-    [endpointsConfig],
+    [endpointsConfig, allowedProviders],
   );
 
   /* Mutations */
@@ -78,7 +87,42 @@ export default function AgentPanel({
       });
     },
     onError: (err) => {
-      const error = err as Error;
+      const error = err as Error & {
+        statusCode?: number;
+        details?: { duplicateVersion?: any; versionIndex?: number };
+        response?: { status?: number; data?: any };
+      };
+
+      const isDuplicateVersionError =
+        (error.statusCode === 409 && error.details?.duplicateVersion) ||
+        (error.response?.status === 409 && error.response?.data?.details?.duplicateVersion);
+
+      if (isDuplicateVersionError) {
+        let versionIndex: number | undefined = undefined;
+
+        if (error.details?.versionIndex !== undefined) {
+          versionIndex = error.details.versionIndex;
+        } else if (error.response?.data?.details?.versionIndex !== undefined) {
+          versionIndex = error.response.data.details.versionIndex;
+        }
+
+        if (versionIndex === undefined || versionIndex < 0) {
+          showToast({
+            message: localize('com_agents_update_error'),
+            status: 'error',
+            duration: 5000,
+          });
+        } else {
+          showToast({
+            message: localize('com_ui_agent_version_duplicate', { versionIndex: versionIndex + 1 }),
+            status: 'error',
+            duration: 10000,
+          });
+        }
+
+        return;
+      }
+
       showToast({
         message: `${localize('com_agents_update_error')}${
           error.message ? ` ${localize('com_ui_error')}: ${error.message}` : ''
@@ -118,6 +162,9 @@ export default function AgentPanel({
       if (data.file_search === true) {
         tools.push(Tools.file_search);
       }
+      if (data.web_search === true) {
+        tools.push(Tools.web_search);
+      }
 
       const {
         name,
@@ -130,6 +177,7 @@ export default function AgentPanel({
         agent_ids,
         end_after_tools,
         hide_sequential_outputs,
+        recursion_limit,
       } = data;
 
       const model = _model ?? '';
@@ -151,6 +199,7 @@ export default function AgentPanel({
             agent_ids,
             end_after_tools,
             hide_sequential_outputs,
+            recursion_limit,
           },
         });
         return;
@@ -175,6 +224,7 @@ export default function AgentPanel({
         agent_ids,
         end_after_tools,
         hide_sequential_outputs,
+        recursion_limit,
       });
     },
     [agent_id, create, update, showToast, localize],
@@ -208,7 +258,7 @@ export default function AgentPanel({
         className="scrollbar-gutter-stable h-auto w-full flex-shrink-0 overflow-x-hidden"
         aria-label="Agent configuration form"
       >
-        <div className="mx-1 mt-2 flex w-full flex-wrap gap-2">
+        <div className="mt-2 flex w-full flex-wrap gap-2">
           <div className="w-full">
             <AgentSelect
               createMutation={create}
@@ -276,9 +326,22 @@ export default function AgentPanel({
           <AgentConfig
             actions={actions}
             setAction={setAction}
+            createMutation={create}
             agentsConfig={agentsConfig}
             setActivePanel={setActivePanel}
             endpointsConfig={endpointsConfig}
+            setCurrentAgentId={setCurrentAgentId}
+          />
+        )}
+        {canEditAgent && !agentQuery.isInitialLoading && activePanel === Panel.advanced && (
+          <AdvancedPanel setActivePanel={setActivePanel} agentsConfig={agentsConfig} />
+        )}
+        {canEditAgent && !agentQuery.isInitialLoading && (
+          <AgentFooter
+            createMutation={create}
+            updateMutation={update}
+            activePanel={activePanel}
+            setActivePanel={setActivePanel}
             setCurrentAgentId={setCurrentAgentId}
           />
         )}

@@ -1,4 +1,5 @@
 import {
+  useRef,
   useMemo,
   useState,
   useEffect,
@@ -7,8 +8,9 @@ import {
   useCallback,
   createContext,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { debounce } from 'lodash';
 import { useRecoilState } from 'recoil';
+import { useNavigate } from 'react-router-dom';
 import { setTokenHeader, SystemRoles } from 'librechat-data-provider';
 import type * as t from 'librechat-data-provider';
 import {
@@ -35,6 +37,8 @@ const AuthContextProvider = ({
   const [token, setToken] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const logoutRedirectRef = useRef<string | undefined>(undefined);
+
   const { data: userRole = null } = useGetRole(SystemRoles.USER, {
     enabled: !!(isAuthenticated && (user?.role ?? '')),
   });
@@ -44,26 +48,31 @@ const AuthContextProvider = ({
 
   const navigate = useNavigate();
 
-  const setUserContext = useCallback(
-    (userContext: TUserContext) => {
-      const { token, isAuthenticated, user, redirect } = userContext;
-      setUser(user);
-      setToken(token);
-      //@ts-ignore - ok for token to be undefined initially
-      setTokenHeader(token);
-      setIsAuthenticated(isAuthenticated);
-      if (redirect == null) {
-        return;
-      }
-      if (redirect.startsWith('http://') || redirect.startsWith('https://')) {
-        // For external links, use window.location
-        window.location.href = redirect;
-        // Or if you want to open in a new tab:
-        // window.open(redirect, '_blank');
-      } else {
-        navigate(redirect, { replace: true });
-      }
-    },
+  const setUserContext = useMemo(
+    () =>
+      debounce((userContext: TUserContext) => {
+        const { token, isAuthenticated, user, redirect } = userContext;
+        setUser(user);
+        setToken(token);
+        //@ts-ignore - ok for token to be undefined initially
+        setTokenHeader(token);
+        setIsAuthenticated(isAuthenticated);
+
+        // Use a custom redirect if set
+        const finalRedirect = logoutRedirectRef.current || redirect;
+        // Clear the stored redirect
+        logoutRedirectRef.current = undefined;
+
+        if (finalRedirect == null) {
+          return;
+        }
+
+        if (finalRedirect.startsWith('http://') || finalRedirect.startsWith('https://')) {
+          window.location.href = finalRedirect;
+        } else {
+          navigate(finalRedirect, { replace: true });
+        }
+      }, 50),
     [navigate, setUser],
   );
   const doSetError = useTimeout({ callback: (error) => setError(error as string | undefined) });
@@ -106,7 +115,16 @@ const AuthContextProvider = ({
   });
   const refreshToken = useRefreshTokenMutation();
 
-  const logout = useCallback(() => logoutUser.mutate(undefined), [logoutUser]);
+  const logout = useCallback(
+    (redirect?: string) => {
+      if (redirect) {
+        logoutRedirectRef.current = redirect;
+      }
+      logoutUser.mutate(undefined);
+    },
+    [logoutUser],
+  );
+
   const userQuery = useGetUserQuery({ enabled: !!(token ?? '') });
 
   const login = (data: t.TLoginUser) => {
