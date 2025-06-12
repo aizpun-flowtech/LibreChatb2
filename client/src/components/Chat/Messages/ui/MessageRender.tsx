@@ -1,6 +1,6 @@
+import React, { useCallback, useMemo, memo } from 'react';
 import { useRecoilValue } from 'recoil';
-import { useCallback, useMemo, memo } from 'react';
-import type { TMessage } from 'librechat-data-provider';
+import { type TMessage } from 'librechat-data-provider';
 import type { TMessageProps, TMessageIcon } from '~/common';
 import MessageContent from '~/components/Chat/Messages/Content/MessageContent';
 import PlaceholderRow from '~/components/Chat/Messages/ui/PlaceholderRow';
@@ -53,13 +53,13 @@ const MessageRender = memo(
       copyToClipboard,
       setLatestMessage,
       regenerateMessage,
+      handleFeedback,
     } = useMessageActions({
       message: msg,
       currentEditId,
       isMultiMessage,
       setCurrentEditId,
     });
-
     const maximizeChatSpace = useRecoilValue(store.maximizeChatSpace);
     const fontSize = useRecoilValue(store.fontSize);
 
@@ -96,10 +96,10 @@ const MessageRender = memo(
       () =>
         showCardRender && !isLatestMessage
           ? () => {
-            logger.log(`Message Card click: Setting ${msg?.messageId} as latest message`);
-            logger.dir(msg);
-            setLatestMessage(msg!);
-          }
+              logger.log(`Message Card click: Setting ${msg?.messageId} as latest message`);
+              logger.dir(msg);
+              setLatestMessage(msg!);
+            }
           : undefined,
       [showCardRender, isLatestMessage, msg, setLatestMessage],
     );
@@ -210,6 +210,7 @@ const MessageRender = memo(
                   copyToClipboard={copyToClipboard}
                   handleContinue={handleContinue}
                   latestMessage={latestMessage}
+                  handleFeedback={handleFeedback}
                   isLast={isLast}
                 customButtons={[
                   {
@@ -218,52 +219,7 @@ const MessageRender = memo(
                     onClick: async () => {
                       alert('This Feature is comming soon!\n\nEmailvorschlag ans AMS senden:\n\n'+msg.text);
                     },
-                  },
-                  {
-                    title: 'send_feedback_to_support',
-                    icon: MessageSquareWarningIcon,
-                    onClick: async () => {
-
-                      const response = await fetch('https://aizpun.webhook.office.com/webhookb2/ab3adddd-9ce9-431a-8972-374ba7b510c3@92c587dd-51e5-406e-888f-3223791e4afe/IncomingWebhook/78f012b8e0564b1581b34c24c22661e6/380d7776-6d22-4778-a4ab-b92e004adfc4/V2SeiJ5UPBDOX1x_w37M84QK_Kh3h3OmJiSr7ETADVeQs1', {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        body: JSON.stringify({
-                          '@type': 'MessageCard',
-                          '@context': 'http://schema.org/extensions',
-                          'themeColor': 'FF5555',
-                          'summary': 'Notification Card',
-                          'sections': [
-                            {
-                              'activityTitle': 'Nutzer: **' + user?.email + '**',
-                              // 'activitySubtitle': 'Here is a brief description of the event or information.',
-                              'markdown': true,
-                              // 'text': 'A sample event occurred, and here are the details:',
-                              'facts': [
-                                {
-                                  'name': 'Beschreibung',
-                                  'value': 'Ein Fehler ist aufgetreten.',
-                                },
-                                {
-                                  'name': 'Chat-ID',
-                                  'value': conversation?.conversationId,
-                                },
-                              ],
-                            },
-                            {
-                              'text': msg.text,
-                              'markdown': true,
-                            },
-                          ],
-                        },
-                        ),
-                      });
-                      if(response.ok){
-                        alert('Feedback wurde an den Support gesendet.');
-                      }else {
-                        alert('Fehler beim Senden des Feedbacks.');
-                      }
-                    },
-                  },
+                  }
                 ]}
                 />
               </SubRow>
