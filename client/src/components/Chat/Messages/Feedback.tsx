@@ -21,11 +21,14 @@ import {
 } from '~/components';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
+import { useAuthContext } from '~/hooks/AuthContext';
 
 interface FeedbackProps {
   handleFeedback: ({ feedback }: { feedback: TFeedback | undefined }) => void;
   feedback?: TFeedback;
   isLast?: boolean;
+  conversation: any;
+  message: any;
 }
 
 const ICONS = {
@@ -64,7 +67,7 @@ function FeedbackOptionButton({
       type="button"
       aria-label={label}
       aria-pressed={active}
-    >
+    > 
       <Icon size="19" bold={active} />
       <span>{label}</span>
     </button>
@@ -235,14 +238,26 @@ export default function Feedback({
   isLast = false,
   handleFeedback,
   feedback: initialFeedback,
+  conversation,
+  message,
 }: FeedbackProps) {
   const localize = useLocalize();
   const [openDialog, setOpenDialog] = useState(false);
   const [feedback, setFeedback] = useState<TFeedback | undefined>(initialFeedback);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const { user } = useAuthContext();
 
   useEffect(() => {
     setFeedback(initialFeedback);
   }, [initialFeedback]);
+
+  useEffect(() => {
+    if (!feedback?.text?.trim() && !openDialog) {
+      setFeedback(undefined);
+      setFileName(null)
+      handleFeedback({ feedback: undefined });
+    }
+  }, [openDialog])
 
   const propagateMinimal = useCallback(
     (fb: TFeedback | undefined) => {
@@ -254,8 +269,7 @@ export default function Feedback({
 
   const handleButtonFeedback = useCallback(
     (fb: TFeedback | undefined) => {
-      if (fb?.tag?.key === 'other') setOpenDialog(true);
-      else setOpenDialog(false);
+      setOpenDialog(true);
       propagateMinimal(fb);
     },
     [propagateMinimal],
@@ -267,12 +281,54 @@ export default function Feedback({
     setFeedback((prev) => (prev ? { ...prev, text: e.target.value } : undefined));
   };
 
+  async function submitFeedbackData() {
+    const fileInput = document.getElementById("screenshot") as HTMLInputElement;
+    const file = fileInput?.files?.[0] || null;
+
+      const formData = new FormData();
+
+      formData.append(
+        "metaData",
+        JSON.stringify(
+          {
+            email: user?.email,
+            messageid: message?.messageId,
+            chatid: conversation?.conversationId,
+            timestamp: new Date().toISOString(),
+          },
+        )
+      );
+
+      formData.append(
+        "feedbackData",
+        JSON.stringify(
+          {
+            selectedCategory: feedback?.tag?.key,
+            textField: feedback?.text?.trim(),
+          },
+        )
+      );
+      console.log(file)
+      if (file) {
+        formData.append("screenshot", file);
+      }
+
+      const response = await fetch("https://n8n.insurai.de/webhook/feedback", {
+        method: "POST",
+        headers: {
+          "GenAPI": "724055b8-29ef-40aa-b79f-7720d51bf719"
+        },
+        body: formData,
+      });
+  }
+
   const handleDialogSave = useCallback(() => {
     if (feedback?.tag?.key === 'other' && !feedback?.text?.trim()) {
       return;
     }
     propagateMinimal(feedback);
     setOpenDialog(false);
+    submitFeedbackData();
   }, [feedback, propagateMinimal]);
 
   const handleDialogClear = useCallback(() => {
@@ -309,7 +365,7 @@ export default function Feedback({
 
   return (
     <>
-      {feedback ? (
+      {feedback?.text?.trim() ? (
         renderSingleFeedbackButton()
       ) : (
         <FeedbackButtons
@@ -322,7 +378,7 @@ export default function Feedback({
       <OGDialog open={openDialog} onOpenChange={setOpenDialog}>
         <OGDialogContent className="w-11/12 max-w-lg">
           <OGDialogTitle className="text-token-text-primary text-lg font-semibold leading-6">
-            {localize('com_ui_feedback_more_information')}
+            {localize(feedback?.tag?.label as Parameters<typeof localize>[0])}
           </OGDialogTitle>
           <textarea
             className="w-full rounded-xl border border-border-light bg-transparent p-2 text-text-primary"
@@ -332,12 +388,28 @@ export default function Feedback({
             placeholder={localize('com_ui_feedback_placeholder')}
             maxLength={500}
           />
+          <input
+            id="screenshot"
+            type="file"
+            style={{ display: 'none' }}
+            accept="image/*"
+            onChange={(e) => setFileName(e.target.files?.[0]?.name || null)}
+          />
+          <Button
+            className={'my-3'}
+            onClick={(e) => {
+              e.preventDefault();
+              (document.getElementById('screenshot') as HTMLInputElement)?.click();
+            }}
+          >
+            {(!(document.getElementById("screenshot") as HTMLInputElement)?.files?.[0]) ? localize('com_ui_feedback_field_screenshot_label') : localize('com_ui_feedback_file_selected') + ' ' + fileName}
+          </Button>
           <div className="mt-4 flex items-end justify-end gap-2">
             <Button variant="destructive" onClick={handleDialogClear}>
               {localize('com_ui_delete')}
             </Button>
             <Button variant="submit" onClick={handleDialogSave} disabled={!feedback?.text?.trim()}>
-              {localize('com_ui_save')}
+              {localize('com_ui_feedback_submit')}
             </Button>
           </div>
         </OGDialogContent>

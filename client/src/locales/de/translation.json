@@ -933,35 +933,9 @@
   "com_ui_damage_clerk": "Schaden-Sachbearbeiter",
   "com_ui_salesperson": "Vertriebler",
 
-  "com_ui_feedback_send": "Send feedback to support",
-  "com_ui_feedback_submit": "Submit",
-  "com_ui_feedback_upload_file": "Upload File",
-  "com_ui_feedback_file_selected": "Selected: ",
-  "com_ui_feedback_success": "Feedback was sent to support.",
-  "com_ui_feedback_error": "Error sending feedback.",
-
-  "com_ui_feedback_category_bad_ai_answer": "Bad AI Answer",
-  "com_ui_feedback_category_error": "Error",
-  "com_ui_feedback_category_thank_you": "Thank You",
-  "com_ui_feedback_category_suggestion": "Suggestion",
-  "com_ui_feedback_category_other": "Other",
-
-  "com_ui_feedback_field_issue_description_label": "What was incorrect or unhelpful?",
-  "com_ui_feedback_field_issue_description_placeholder": "Describe the problem...",
-  "com_ui_feedback_field_suggested_improvement_label": "Suggested improvement (optional)",
-  "com_ui_feedback_field_suggested_improvement_placeholder": "How could the answer be better?",
-
-  "com_ui_feedback_field_error_description_label": "Describe the error",
-  "com_ui_feedback_field_error_description_placeholder": "What went wrong?",
-  "com_ui_feedback_field_screenshot_label": "Attach screenshot (optional)",
-
-  "com_ui_feedback_field_message_label": "Your message (optional)",
-  "com_ui_feedback_field_message_placeholder": "Thanks for...",
-
-  "com_ui_feedback_field_suggestion_details_label": "Your suggestion",
-  "com_ui_feedback_field_suggestion_details_placeholder": "How can we improve?",
-
-  "com_ui_feedback_field_description_label": "Describe your feedback",
-  "com_ui_feedback_field_description_placeholder": "Provide details..."
+  "com_ui_feedback_submit": "Absenden",
+  "com_ui_feedback_upload_file": "Datei auswählen",
+  "com_ui_feedback_file_selected": "Ausgewählt:",
+  "com_ui_feedback_field_screenshot_label": "Screenshot anhängen (optional)"
 
 }
